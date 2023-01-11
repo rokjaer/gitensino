@@ -1,0 +1,736 @@
+---
+title: "Trabalho Econometria II"
+author: "Rosália Kjaer"
+date: "2022-12-14"
+output:
+  pdf_document: 
+    keep_tex: true
+geometry: margin=1in
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(cache = T, echo = T, tidy = TRUE, tidy.opts = list(width.cutoff = 60), warning = F, message = FALSE)
+```
+```{r library, include=FALSE}
+library(tidyverse)
+library(ggplot2)
+library(stargazer)
+library(kableExtra)
+library(gridExtra)
+library(zoo)
+library(MASS)
+```
+$\textbf{1.}$
+$\textbf{(a)}$
+
+Temos que
+
+$$
+f(y_{1i}, y_{2i}|x_i) = f(y_{1i}|y_{2i}, x_i)\cdot f(y_{2i}|x_i)
+$$
+
+Então precisamos encontrar $f(y_{1i}|y_{2i}, x_i)$ e $f(y_{2i}|x_i)$. Vamos primeiro encontrar $f(y_{2i}|x_i)$.
+Pelo enunciado, temos a seguinte estrutura entre os erros
+
+$$
+\left(\begin{array}{l}
+u_i \\
+v_i
+\end{array}\right) \sim \operatorname{NID}\left[\left(\begin{array}{l}
+0 \\
+0
+\end{array}\right),\left(\begin{array}{ll}
+\sigma_{u}^2 & \sigma_{u v} \\
+\sigma_{v u} & \sigma_{v}^2
+\end{array}\right)\right]
+$$
+* Distribuição marginal
+
+$$
+\mathbb{D}(u_i) = \mathcal{N}(0, \sigma_u^2)\\
+\mathbb{D}(v_i) = \mathcal{N}(0, \sigma_v^2)
+$$
+
+* Distribuição Condicional
+
+$$
+\mathbb{D}(u_i | v_i) = \mathcal{N}\left(\frac{\sigma{u v}}{\sigma_v^2}v_i, \sigma_u^2 - \frac{\sigma{u v}^2}{\sigma_v^2}\right)\\
+\mathbb{D}(v_i | u_i) = \mathcal{N}\left(\frac{\sigma{v u}}{\sigma_u^2}u_i, \sigma_v^2 - \frac{\sigma{v u}^2}{\sigma_u^2}\right)\\
+$$  
+Partindo então de $y_{2 i}=\pi_1 x_{1 i}+\pi_2 x_{2 i}+\pi_3 x_{3 i}+v_i$, temos
+
+$$
+\mathbb{E}[y_{2 i}| x_i] = \pi_1 x_{1 i}+\pi_2 x_{2 i}+\pi_3 x_{3 i} \\
+\mathbb{V}[y_{2 i}| x_i] = \mathbb{V}[v_i | x_i] = \mathbb{V}[v_i] = 1
+$$
+
+Daí tiramos que
+
+$$
+\mathbb{D}(y_{2 i}|x_i) = \mathcal{N}\left(\pi_1 x_{1 i}+\pi_2 x_{2 i}+\pi_3 x_{3 i}, 1\right)
+$$
+
+Logo, 
+
+$$f(y_2|x) = \frac{1}{\sqrt{2\pi\sigma_v^2}} \text{exp} \left\{- \frac{(y_2-\pi_1 x_1 - \pi_2 x_2 - \pi_3 x_3)^{2}}{2\sigma^{2}_{v}} \right\}$$
+
+Seja $\Phi(w) \equiv\Phi\left(\frac{ (\gamma+\lambda) y_2 + (\beta_1-\lambda \pi_1) x_1 + (\beta_2 - \lambda \pi_2) x_2 - \lambda \pi_3 x_3)}{\sigma_u^2 - \lambda^2 \sigma_v^2}\right)$
+
+$$L(\theta (y_{1i},y_{2i},x_i))$$
+$$ = f(y_{1i},y_{2i}|x_i) = f(y_{1i}|y_{2i},x_i)f(y_{2i}|x_i)$$
+$$= (\Phi(w_i))^{y_{1i}}(1-\Phi(w_i))^{1-y_{1i}}$$
+$$\frac{1}{\sqrt{2\pi\sigma_v^2}} \text{exp} \left\{- \frac{(y_{2i}-\pi_1 x_{1i} - \pi_2 x_{2i} - \pi_3 x_{3i})^{2}}{\sqrt{2\sigma^{2}_{v}}} \right\}$$
+
+A função de log-verossimilhança é dada por:
+
+$$
+\mathcal{L} = \ln L(\theta; (y,x)) = \ln \prod^n_{i=1} f(y_{1i},y_{2i}|x_i) = \sum^n_{i=1} \ln f(y_{1i},y_{2i}|x_i)
+$$
+Na qual
+
+$$ 
+\ln f(y_{1i},y_{2i}|x_i) = y_{1i} \ln(\Phi(w_i)) + (1-y_{1i}) \ln(1-\Phi(w_i)) - \frac{1}{2} \ln(\sigma_v^2)- \frac{(y_{2i}-\pi_1 x_{1i} - \pi_2 x_{2i} - \pi_3 x_{3i})^{2}}{2\sigma^{2}_{v}} 
+$$
+
+e 
+$$
+\Phi(w_i) \equiv\Phi\left(\frac{ (\gamma+\lambda) y_2 + (\beta_1-\lambda \pi_1) x_1 + (\beta_2 - \lambda \pi_2) x_2 - \lambda \pi_3 x_3)}{\sqrt{\sigma_u^2 - \lambda^2 \sigma_v^2}}\right)
+$$
+
+$\textbf{(b)}$
+```{r}
+#Parâmetros
+mu <- c(0,0)
+
+a <- c(1,0.5)
+b <- c(0.5,1)
+sigma_x <- rbind(a,b)
+
+gama <- 1
+beta1 <- 0
+beta2 <- -1
+pi1 <- 0
+pi2 <- 1
+pi3 <- 1
+lambda <- 0.5
+
+#X1 como constante
+x1 <- rep( 1 , 100 )
+
+```
+
+```{r}
+#Simulando as samples das distribuições normais
+
+x2x3 <- as.data.frame( mvrnorm( 100, mu, sigma_x ) )
+colnames(x2x3) <- c("x2","x3")
+
+
+v <- as.data.frame( rnorm(100,0,1) )
+colnames(v) <- c("v")
+
+
+n <- as.data.frame( rnorm(100,0,1) )
+colnames(n) <- c("n")
+
+dados <- cbind( x1, x2x3, v, n )
+```
+
+```{r}
+#Simulando Y2 e Y1
+
+dados <- mutate( dados,  y2 = pi1 + pi2*x2 + pi3*x3 + v) %>%
+  mutate( u = lambda*v + n)  %>%
+  mutate( y1 = ifelse (gama*y2 + beta1*x1 + beta2*x2 + u > 0,
+                      1,0))
+```
+
+```{r}
+#Construindo a função log-likelyhood
+
+log_like = function(par, y1 = dados$y1, y2 = dados$y2, 
+                    x1 = dados$x1, x2 = dados$x2, x3 = dados$x3){
+
+  gama = par[1]
+  beta1 = par[2]
+  beta2 = par[3]
+  pi1 = par[4]
+  pi2 = par[5]
+  pi3 = par[6]
+  lambda = par[7]
+  sigma_v = par[8]
+  sigma_u = par[9]
+  
+  if (sigma_u<0 | sigma_v<0){
+    return(-1e+05)
+  } else {
+    phi = pnorm( 
+      ((gama+lambda)*y2+(beta1-lambda*pi1)*x1+(beta2-lambda*pi2)*x2-lambda*pi3*x3)
+      / (sigma_u-(lambda^2)*sigma_v) 
+    ) 
+    
+    L = sum(
+      y1*log(phi) + (1-y1)*log(1-phi) - (1/2)*log(sigma_v) - 
+        (y2-pi1*x1-pi2*x2-pi3*x3)^(2) / (2*sigma_v)
+    )
+    
+    return(L)
+  }
+}
+
+```
+
+```{r}
+#first guess
+eq1 = lm(y1 ~ 0 + y2 + x1 + x2 , dados) 
+eq2 = lm(y2 ~ 0 + x1 + x2 + x3 , dados)
+
+#MLE
+
+op = optim(
+  par = c(eq1$coefficients[1], eq1$coefficients[2], eq1$coefficients[3], 
+          eq2$coefficients[1], eq2$coefficients[2], eq2$coefficients[3], 
+          0.5, 1, 1),
+  log_like, 
+  control = list(fnscale = -1) ) 
+
+paste(c("Gama", "Beta 1", "Beta 2", "Pi 1", "Pi 2", "Pi 3", 
+        "Lambda", "Variância de V", "Variância de U"),
+      round(op$par, 4), sep = ": " )
+
+```
+
+```{r}
+#Bootstrap
+
+coef_boot <- matrix( 0 , ncol = 9, nrow = 1000 )
+
+for (i in 1:1000) {
+  #Bootstrap para X2 e X3 conjuntamente
+  boot_sample <- sample( dados$x2, replace = TRUE)
+  boot_sample <- as.tibble( boot_sample )
+  Y <- as.tibble( dados[,2:3] )
+  boot_sample <- rename( boot_sample , x2=value )
+  Y <- left_join( boot_sample , Y , by = "x2" )
+  boot_sample <- mutate( Y , "x1" = 1 )
+  boot_sample <- as.matrix( boot_sample )
+  
+  #Bootstrap para U e V conjuntamente
+  boot_sample_v <- sample( dados$v , replace = TRUE )
+  boot_sample_v <- as.tibble( boot_sample_v )
+  X <- as.tibble( dados[ , c(4,7) ] )
+  boot_sample_v <- rename( boot_sample_v , v = value )
+  boot_sample_v <- left_join( boot_sample_v , X , by = "v" )
+  boot_sample_v <- as.matrix( boot_sample_v )
+  
+  Z <- as.data.frame( cbind( boot_sample , boot_sample_v ) ) %>%
+    mutate( y2 = pi1 + pi2*x2 + pi3*x3 + v ) %>%
+    mutate( y1 = ifelse ( gama*y2 + beta1*x1 + beta2*x2 + u > 0,
+                        1,0))
+  eq11 = lm(y1 ~ 0 + y2 + x1 + x2 , Z) 
+  eq22 = lm(y2 ~ 0 + x1 + x2 + x3 , Z)
+  
+  #Otimização
+  
+  log_like_boot = function(par, y1 = Z$y1, y2 = Z$y2, x1 = Z$x1, x2 = Z$x2, x3 = Z$x3){
+    
+    gama = par[1]
+    beta1 = par[2]
+    beta2 = par[3]
+    pi1 = par[4]
+    pi2 = par[5]
+    pi3 = par[6]
+    lambda = par[7]
+    sigma_v = par[8]
+    sigma_u = par[9]
+    
+    if (sigma_u<0 | sigma_v<0){
+      return(-1e+05)
+    } else {
+      phi = pnorm( 
+        ((gama+lambda)*y2+(beta1-lambda*pi1)*x1+(beta2-lambda*pi2)*x2-lambda*pi3*x3)
+        / (sigma_u-(lambda^2)*sigma_v) 
+      ) 
+      
+      L = sum(
+        y1*log(phi) + (1-y1)*log(1-phi) - 
+          (1/2)*log(sigma_v) - (y2-pi1*x1-pi2*x2-pi3*x3)^(2) / (2*sigma_v)
+      )
+      
+      return(L)
+    }
+  }
+  op1 = optim(
+    par = c(eq11$coefficients[1], eq11$coefficients[2], eq11$coefficients[3], 
+            eq22$coefficients[1], eq22$coefficients[2], eq22$coefficients[3], 
+            0.5, 1, 1),
+    log_like_boot, 
+    control = list(fnscale = -1) ) 
+  coef_boot [ i, ] <- op1$par
+  
+}
+
+colnames(coef_boot) <- c("Gama", "Beta1", "Beta2", "Pi1", "Pi2", "Pi3",
+                         "Lambda", "Variância de V", "Variância de U")
+summary(coef_boot)
+
+```
+
+```{r}
+#Intervalos de Confiança
+ic <- matrix(0, ncol= 2, nrow=9)
+for (i in 1:9){
+  
+  ic[i,] <- quantile(coef_boot[,i],c(0.025, 0.975))
+}
+ic <- as.data.frame( ic )
+names(ic) <- c("2.5%","97.5%")
+rownames(ic) <- c("gamma", "beta1", "beta2", "pi1", "pi2",
+                  "pi3", "lambda", "var_v", "var_u")
+print(ic)
+
+```
+
+
+
+$\textbf{(c)}$
+Para o procedimento de duas etapas, temos:
+(1) Regredir $Y_2i$ em $X_i$ para obter $\hat{\Pi}$ . $\hat{\sigma}_v$ é estimado da maneira usual: $n^{-1} \sum_{i=1}^n \hat{V}_i \hat{V}_i^{\prime}$ na qual $\hat{V}_i=Y_i-\hat{\Pi} X_i$ são so resíduos do MQO.
+(2) Análise probit de $y_1$ em $Y_2, X_{1 i}, X_{2 i},\hat{V}_i$. Assim conseguimos estimações dos coeficiente $(\hat{\gamma}_a, \hat{\beta}_a, \hat{\lambda}_a)$, no qual o subscrito $a$ denota a necessidade de um ajuste. O ajuste é necessário devido a correlação entre $v$ e $u$. Assim, é necessario dividir os coeficientes encontrados no passo dois pelo fator de ajuste $\sqrt{1-{\theta_a}^2{\sigma_v}^2}$, no qual $\theta_a$ é o coeficiente de $\hat{v}$ na estimação probit do passo 2.
+O teste de endogeinedade pode ser feito a partir de $\theta_a$. Se estatisticamente igual a zero, teremos que não há correlação entre $Y_1$ e $Y_2$ e consequentemente entre os erros.
+
+$\textbf{(d)}$
+```{r}
+coef_boot_2 <- matrix( 0 , ncol = 9, nrow = 1000)
+set.seed(1711)
+for (i in 1:1000) {
+  
+ #Bootstrap para X2 e X3 conjuntamente
+  boot_sample2 <- sample( dados$x2, replace = TRUE)
+  boot_sample2 <- as.tibble( boot_sample2 )
+  Y2 <- as.tibble( dados[,2:3] )
+  boot_sample2 <- rename( boot_sample2 , x2=value )
+  Y2 <- left_join( boot_sample2 , Y2 , by = "x2" )
+  boot_sample2 <- mutate( Y2 , "x1" = 1 )
+  boot_sample2 <- as.matrix( boot_sample2 )
+  
+  #Bootstrap para U e V conjuntamente
+  boot_sample_v2 <- sample( dados$v , replace = TRUE )
+  boot_sample_v2 <- as.tibble( boot_sample_v2 )
+  X2 <- as.tibble( dados[ , c(4,7) ] )
+  boot_sample_v2 <- rename( boot_sample_v2 , v = value )
+  boot_sample_v2 <- left_join( boot_sample_v2 , X2 , by = "v" )
+  boot_sample_v2 <- as.matrix( boot_sample_v2 )
+  
+  Z <- as.data.frame( cbind( boot_sample2 , boot_sample_v2 ) ) %>%
+    mutate( y2 = pi1 + pi2*x2 + pi3*x3 + v ) %>%
+    mutate( y1 = ifelse ( gama*y2 + beta1*x1 + beta2*x2 + u > 0,
+                        1,0))
+  
+  #first step
+  boot_1s <- lm(y2 ~ 0 + x1 + x2 + x3 ,Z)
+  v_hat <- as.data.frame( resid(boot_1s) )
+  
+  #second step
+  v_hat<-as.matrix(v_hat)
+  boot_2s <- lm(y1 ~ 0 + y2 + x1 + x2 + v_hat, Z)
+  
+  log_like_2s = function(par, y1 = Z$y1, y2 = Z$y2, x1 = Z$x1, x2 = Z$x2, v = v_hat){
+    
+    alpha1 = par[1]
+    alpha2 = par[2]
+    alpha3 = par[3]
+    delta = par[4]
+    
+    Phi = pnorm( alpha1*y2 + alpha2*x1 + alpha3*x2 + delta*v) 
+    
+    L = sum( y1*log(Phi) + (1-y1)*log(1-Phi) )
+    
+    return(L)
+  }
+  
+  
+  
+op2s<- optim(
+  par = c(par = c(boot_2s$coefficients[1], 
+                  boot_2s$coefficients[2],
+                  boot_2s$coefficients[3], 
+                  boot_2s$coefficients[4])),
+    log_like_2s, 
+    control = list(fnscale = -1) )
+
+
+
+#Variância de V
+sigma_v_hat <- sd(v_hat)
+
+#fator de ajuste
+delta_hat <- op2s$par[4]
+lambda_hat <- delta_hat/sqrt(1 + delta_hat^2*sigma_v_hat^2)
+ajuste <- sqrt(1-lambda_hat^2*sigma_v_hat^2)
+
+#Variância de U
+u <- Z$y1-op2s$par[1]*ajuste*Z$y2-op2s$par[2]*ajuste*Z$x1-op2s$par[3]*ajuste*Z$x2
+sigma_u <- sd(u)
+
+#Ajustando coeficientes
+lambda_hat <- delta_hat/sqrt(1 + delta_hat^2*sigma_v_hat^2)
+
+par_reajuste <- cbind(op2s$par[1]*ajuste,
+                      op2s$par[2]*ajuste,
+                      op2s$par[3]*ajuste,
+                      boot_2s$coefficients[1],
+                      boot_2s$coefficients[2],
+                      boot_2s$coefficients[3],
+                      lambda_hat,sigma_v_hat, sigma_u)
+coef_boot_2[i,]<-par_reajuste
+
+
+}
+
+colnames(coef_boot_2) <- c("Gama", "Beta1", "Beta2", "Pi1", 
+                           "Pi2", "Pi3", "Lambda", "Variância de V", "Variância de U")
+summary(coef_boot_2)
+```
+
+```{r}
+#Intervalos de Confiança
+ic2 <- matrix(0, ncol= 2, nrow=9)
+for (i in 1:9){
+  
+  ic2[i,] <- quantile(coef_boot_2[,i],c(0.025, 0.975))
+}
+ic2 <- as.data.frame( ic2 )
+names(ic2) <- c("2.5%","97.5%")
+rownames(ic2) <- c("gamma", "beta1", "beta2", "pi1",
+                   "pi2", "pi3", "lambda", "var_v", "var_u")
+print(ic2)
+```
+$\textbf{(e)}$
+O MLE é informacionalemente superior a qualquer procedimento de duas etapas, pois este não leva em consideração todas as informações disponíveis (limited information). A desvantagem da abordagem de máxima verossimilhança vem do requerimento computacional, pode ser muito difícil fazer com que iterações convirjam. Além disso, a abordagem de MLE nos entrega diretamente os coeficientes de interesse, sem necessitar do cálculo do fator de ajuste. Isso é refletido nos dados, uma vez que as estimações por MLE estão mais de acordo com o modelo verdadeiro.
+
+$\textbf{2.}$
+$\textbf{(a)}$
+Para descobrirmos a relação entre as distribuições dos preços efetivos e das valorações dos participantes do leilão, precisamos entender a estatística de ordem, que possui essa fórmula. 
+
+$$\begin{aligned}
+F_{X_{(r)}}(x) & = \sum_{j=r}^{n} \binom{n}{j} [ F(x) ]^{j} [ 1 - F(x) ]^{n-j}
+\end{aligned}$$
+  
+  
+  
+  Mais especificamente para a estatística de mínimo ($r=n-1$) e com apenas duas observações ($n = 2$), tem-se:
+  
+$$\begin{aligned}
+F_{X_{(n-1)}}(x) & = \sum_{j=n-1}^{n} \binom{n}{j} [ F(x) ]^{j} [ 1 - F(x) ]^{n-j} \\
+& = \binom{n}{n-1} [ F(x) ]^{n-1} [ 1 - F(x) ]^{n-(n-1)} + \binom{n}{n} [ F(x) ]^{n} [ 1 - F(x) ]^{n-n} \\
+& = n [ F(x) ]^{n-1} [ 1 - F(x) ] + [F(x)]^n \\
+& = 2 [ F(x) ]^{2-1} [ 1 - F(x) ] + [F(x)]^2 = 2F(x)[ 1 - F(x) ] + [F(x)]^2 \\
+& = F(x)[ 2 - F(x) ]
+\end{aligned}$$
+
+
+ $\textbf{(b)}$
+
+$$\begin{aligned}
+G(t)= F(x)[ 2 - F(x) ]\\
+[F(x)-1]^2=1-G(t)\\
+1-F(x)=\sqrt{1-G(t)}\\
+F(x)= 1-\sqrt{1-G(t)}
+\end{aligned}$$
+  
+$\textbf{(c)}$
+
+Podemos estimar $\lambda$ utilizando o Método dos Momentos. Assim, temos a distribuição de $t$:
+
+$$
+g(t) = G'(t) = \frac{1}{\lambda}e^{-\frac{t}{\lambda}}
+$$
+
+Para o primeiro momento dessa distribuição:
+
+
+
+$$
+\begin{aligned}
+\mathbb{E}\left[T\right] &= \int_0^{\infty} t g(t) d t \\
+&= \int_0^{\infty} t \frac{1}{\lambda} e^{-\frac{t}{\lambda}} d t \\
+&= \frac{1}{\lambda} \int_0^{\infty} t e^{-\frac{t}{\lambda}} d t \\
+\end{aligned}
+$$
+
+
+$$
+\begin{aligned}
+\mathbb{E}\left[T\right] &= \frac{1}{\lambda} \left[-\left . \lambda e^{-\frac{t}{\lambda}}t\right|_0 ^{\infty} + \int_0^{\infty} \lambda e^{-\frac{t}{\lambda}} d y\right] \\
+&= \frac{1}{\lambda} \lambda \left[  \left . -\lambda e^{-\frac{t}{\lambda}}\right|_0^{\infty} \right] \\
+&= -\lambda (-1) = \lambda \\
+\end{aligned}
+$$
+
+
+
+
+
+
+
+
+
+
+
+
+Ou seja, o primeiro momento é igual a $\lambda$. Dessa maneira, podemos utilizar a Lei dos Grandes Números para encontrarmos uma relação entre a média amostral e a média populacional, provando assim a consistência do nosso estimador.
+
+$$
+\bar{t} = \frac{1}{L} \sum_{l=1}^L t_i  \xrightarrow{\text{p}} \mathbb{E}\left[T\right] = \lambda
+$$
+
+
+$$
+\hat{\lambda} = \bar{t} = \frac{1}{L} \sum_{l=1}^L t_i
+$$
+
+Segue então a disribuição de $F_v(v)$ 
+
+$$\begin{aligned}
+\hat{F}_v(t) = 1 - \sqrt{1 - ( 1 - \exp \{ -t / \hat{\lambda} \} ) } \\
+\hat{F}_v(t) = 1 - \sqrt{ e^  { -t / \hat{\lambda} } } \\
+\hat{F}_v(t) = 1 - e^ { -t / 2\hat{\lambda} } 
+\end{aligned}$$
+
+
+
+
+
+$\textbf{(d)}$
+
+Utilizando o método da função indicadora e a relação entre as distribuições encontrada no item a, vemos que:
+  
+$$\begin{aligned}
+\hat{F}_{np}= 1 - \sqrt{1-\hat{G}_{np}}\\
+\hat{G}_{np}=1/L\sum_{l=1}^{n=L}  \mathbb{I}_{(T_l\leq t)}
+\end{aligned}$$
+
+Na qual $L$ é o número de observações, $T_l$ é a l-ésima o observação.
+
+$\textbf{(e)}$
+
+Para o método de Kernel, temos:
+
+$$\begin{aligned}
+\hat{G}_{np}(t) = 1/Lh\sum_{l=1}^{l=L}\int_{0}^{t} K({T_{l}/h-t}/h)\\
+\end{aligned}$$
+
+Onde, $h$ é o $bandwidth$, $K$ é o kernel e $T_l$ é a l-ésima observação.
+
+$\textbf{(f)}$
+
+```{r}
+# Seed para reprodutibilidade
+set.seed(1326)
+
+#Construindo os valores para as valorações
+z1 <- rlnorm(1, meanlog = 0, sdlog = 1)
+
+v1 <- as.data.frame( runif(1000, min = 0, max = 1)) %>%
+  transmute(v1= -log( 1 - ( 1 - 1/2.718)*runif(1000, min = 0, max = 1)) + z1)
+
+v2 <- as.data.frame( runif(1000, min = 0, max = 1)) %>%
+  transmute(v1= -log( 1 - ( 1 - 1/2.718)*runif(1000, min = 0, max = 1)) + z1)
+
+v <- cbind(v1,v2)
+
+```
+
+```{r}
+#Preços t
+t <- matrix( 0 , ncol = 1, nrow = 1000 )
+for (i in 1:1000) {
+  
+  if( v1[ i, ] > v2[ i,]) {
+    t[ i,] <- v2[ i, ]
+  } else {
+    t[ i,] <- v1[ i, ]
+  }
+}
+
+t <- as.data.frame(t) %>%
+  arrange(desc(V1))
+colnames(t) <- c("t") 
+
+#Para o método não-paramétrico da função indicadora, temos:
+g_hat <- matrix( 0 , ncol = 2, nrow = 1000 )
+
+
+for (i in 1:1000) {
+
+  g_hat[ i, 1] <- t[ i, ]   
+  g_hat[ i, 2] <- c(sum( ifelse( t <= t[ i, ], 1 , 0) )/ 1000)
+
+  }
+
+ggplot(as.data.frame(g_hat), mapping = aes( x = V1, y = V2))+
+  geom_point()+
+  labs(title = "CDF de g pelo método da função indicadora", x = "Preços", y = "g(t)")
+```
+Pelo método de Kernel:
+```{r}
+#Construindo o bandwidth pela regra de bolso
+
+t <- as.matrix(t)
+h<-sd(t)*1000^(-0.2)
+
+```
+
+```{r}
+#Grid para construção da distribuição
+kernelpoints <- seq( 0 , 2.997 , 0.003 )
+
+kdensity <- matrix(0,nrow=1000,ncol=1000)
+
+
+#Aplicando o método do kernel com distribuição normal
+#Vamos encontrar a PDF de g
+for (i in 1:1000) {
+
+  u <- (kernelpoints-t[ i ])/h
+
+  kernel <- ((1/(sqrt(2*pi)))*exp(-0.5 * u^2))/(1000*h)
+  
+  kdensity[,i] <-kernel
+}
+
+kdensity_sum<- rowSums(kdensity)
+
+kernel_pdf <- as.data.frame(cbind(kernelpoints,kdensity_sum))
+
+ggplot(kernel_pdf, mapping = aes( x = kernelpoints, y = kdensity_sum))+
+  geom_point()+
+  labs( title = "PDF de g pelo método kernel",
+        x = "Preços (t)",
+        y = "g(t)")
+```
+
+```{r}
+#Encontramos a PDF e precisamos da CDF
+#Para isso, vamos utilizar a integral de Riemann
+y <- kernel_pdf$kdensity_sum
+x <- kernel_pdf$kernelpoints
+
+riemann <- matrix( 0 , ncol = 1, nrow = 1000)
+for (i in 1:1000){
+  riemann[i,] <- sum(diff(x[1:i]) * rollmean(y[1:i], 2))
+}
+
+
+g_cdf_kernel <- as.data.frame(cbind(x,riemann))
+g_cdf_kernel <- transmute(g_cdf_kernel,
+            t=x,
+            g_hat_k = V2)
+
+ggplot(g_cdf_kernel, mapping = aes( x = t, y = g_hat_k))+
+  geom_point()+
+  labs(title = "CDF de G pelo método de kernel",
+       x = "Preços (t)",
+       y = "G(t)")
+```
+
+$\textbf{(g)}$
+```{r}
+##Agora vamos encontrar a CDF de f através de g
+#Pela função indicadora
+cdf_indicadora <- as.data.frame(mutate(as.data.frame(g_hat),
+                         f_hat = 1 - sqrt(1 - V2)))
+
+ggplot(cdf_indicadora, mapping = aes( x = V1, y = f_hat))+
+  geom_point()+
+  labs( title = "CDF de f pelo método da função indicadora",
+        x = "Preços (t)",
+        y = "F(t)")
+```
+
+```{r}
+#Pelo método do Kernel
+cdf_kernel <- mutate(g_cdf_kernel,
+                     f_hat_k = 1 - sqrt(1 - g_hat_k))
+
+ggplot(cdf_kernel, mapping = aes( x = t, y = f_hat_k))+
+  geom_point()+
+  labs( title = "CDF da função f pelo método kernel",
+        x = "Preços (t)",
+        y = "F(t)")
+
+
+```
+
+$\textbf{(h)}$
+```{r}
+
+lambda_2 <- mean(as.matrix(t))
+#Utilizando como suporte o vetor de preços amostral
+g_exp <- 1 - exp(- t/lambda_2 )
+f_exp <- 1 - sqrt(1 - g_exp )
+colnames(f_exp) <- c("f_exp")
+
+exp <- as.data.frame(cbind(t,f_exp))
+
+ggplot( exp, mapping = aes( x = t, y = f_exp))+
+  geom_point()+
+  labs( title = "PDF de f exponencial com suporte local",
+        x = "Preços (t)",
+        y = "F(t)")
+```
+
+
+```{r}
+#Construindo um suporte maior para a distribuição
+x_axis <- as.data.frame(seq( 0 , 5 , 0.001 ))%>%
+  transmute(x_axis = seq( 0 , 5 , 0.001 ))
+g_exp_s <- 1 - exp(-x_axis/lambda_2)
+f_exp_s <- 1 - sqrt(1 - g_exp_s)
+colnames(f_exp_s) <- c("f_exp_s")
+
+exp_s <- as.data.frame(cbind(x_axis,f_exp_s))
+
+ggplot( exp_s, mapping = aes( x = x_axis, y = f_exp_s))+
+  geom_point()+
+  labs( title = "PDF de f exponencial com suporte completo",
+        x = "Preços (t)",
+        y = "F(t)")
+
+```
+
+```{r}
+#Construindo a CDF real a partir de uma unifomre
+
+x <- seq(0, 1.2, 0.0001)
+y <- as.data.frame(cbind(x,punif(x,min=0.12,max=1.13)))
+
+ggplot(y,mapping = aes( x = x, y = V2))+
+         geom_line()+
+  labs( title = "CDF real (uniforme)",
+        x = "Preços (t)",
+        y = "F(t)")
+```
+
+```{r}
+library(gridExtra)
+
+#Sobrepondo as CDF calculadas
+
+ggplot(cdf_kernel,mapping = aes(x = t, y = f_hat_k))+
+  geom_point(col="tomato", size = 1)+
+  geom_point(data = cdf_indicadora , 
+             mapping = aes(y = f_hat, ),
+             col = "blue", size = 1)+
+  geom_point(y , mapping = aes( x = x , y = V2), 
+             col = "gray50" ,size = 1) +
+  geom_point(exp , mapping = aes ( x = t, y = f_exp), 
+             col="yellow", size = 1)+
+  labs( title = "Comparativo das Distribuições",
+        x = "Preços (t)",
+        y = "F(t)")+
+  coord_cartesian( xlim = c(0,1.2))
+
+```
+Podemos ver que a abordagem não-paramétrica obtiveram resultados bem similares entre si. Além disso, foram as que melhor se aproximaram da distribuição real (em cinza). Já a distribuição paramétrica, construída a partir de uma distribuição exponencial, não parece se adequar, estando mais distante da verdadeira que as outras duas. Isso acontece devido a limitação do uso das observações no último caso. Para estimá-lo só utilizamos a média dos preços. Estimando não parametricamente, deixamos "os dados falarem" e construímos uma distribuição utilizando todo o conjunto de informação da amoostra.
