@@ -734,3 +734,6 @@ ggplot(cdf_kernel,mapping = aes(x = t, y = f_hat_k))+
 
 ```
 Podemos ver que a abordagem não-paramétrica obtiveram resultados bem similares entre si. Além disso, foram as que melhor se aproximaram da distribuição real (em cinza). Já a distribuição paramétrica, construída a partir de uma distribuição exponencial, não parece se adequar, estando mais distante da verdadeira que as outras duas. Isso acontece devido a limitação do uso das observações no último caso. Para estimá-lo só utilizamos a média dos preços. Estimando não parametricamente, deixamos "os dados falarem" e construímos uma distribuição utilizando todo o conjunto de informação da amoostra.
+
+
+E o samuel é um babaca
